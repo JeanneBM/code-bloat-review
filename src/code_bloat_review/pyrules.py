@@ -183,9 +183,12 @@ class PyIndex:
                     self.imports.update(f"{node.module}.{a.name}" for a in node.names)
             elif isinstance(node, ast.Import):
                 self.imports.update(a.name for a in node.names)
-            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-                if id(node) not in docstrings:
-                    refs.update(IDENTIFIER.findall(node.value))
+            elif (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and id(node) not in docstrings
+            ):
+                refs.update(IDENTIFIER.findall(node.value))
 
 
 # --------------------------------------------------------------------------- rules
