@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "code-bloat-review"
+version = "0.1.0"
+description = "Answers one question about a codebase: is it disproportionately large for what it does?"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Joanna Bojko" }]
+keywords = ["code review", "over-engineering", "static analysis", "dead code", "llm"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+    "Environment :: Console",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+code-bloat-review = "code_bloat_review.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["examples"]  # deliberately bloated demo code
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]  # embedded sample sources
+
+# The tool reviews itself in CI (examples/ is skipped by default).
+[tool.code-bloat-review]
+fail-above = 25

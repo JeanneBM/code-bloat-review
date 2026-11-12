@@ -1,0 +1,59 @@
+name: code-bloat-review
+description: "Is this code disproportionately large for what it does? Clean Code as the yardstick."
+branding:
+  icon: scissors
+  color: orange
+
+inputs:
+  path:
+    description: Project directory to review
+    default: "."
+  fail-above:
+    description: Fail the step when the score (0-100) is above this value; empty = never fail
+    default: ""
+  args:
+    description: Extra CLI arguments, e.g. "--exclude 'legacy/*' --mode library"
+    default: ""
+
+outputs:
+  score:
+    description: Bloat score, 0-100 (higher = more bloat)
+    value: ${{ steps.review.outputs.score }}
+  answer:
+    description: YES / PARTLY / NO
+    value: ${{ steps.review.outputs.answer }}
+  report:
+    description: Path to the Markdown report (handy for PR comments)
+    value: ${{ steps.review.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+    - shell: bash
+      run: python -m pip install --quiet "$GITHUB_ACTION_PATH"
+    - id: review
+      shell: bash
+      # Inputs go through env, never straight into the script (no injection via inputs).
+      env:
+        REVIEW_PATH: ${{ inputs.path }}
+        FAIL_ABOVE: ${{ inputs.fail-above }}
+        EXTRA_ARGS: ${{ inputs.args }}
+      run: |
+        report="$RUNNER_TEMP/code-bloat-review.md"
+        # shellcheck disable=SC2086  # EXTRA_ARGS is meant to be split into arguments
+        code-bloat-review "$REVIEW_PATH" -f json -o "$RUNNER_TEMP/code-bloat-review.json" $EXTRA_ARGS || true
+        status=0
+        code-bloat-review "$REVIEW_PATH" -f markdown -o "$report" $EXTRA_ARGS \
+          ${FAIL_ABOVE:+--fail-above "$FAIL_ABOVE"} || status=$?
+        cat "$report" >> "$GITHUB_STEP_SUMMARY"
+        python - <<'EOF' >> "$GITHUB_OUTPUT"
+        import json, os
+        data = json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "code-bloat-review.json")))
+        print(f"score={data['score']}")
+        print(f"answer={data['answer']}")
+        EOF
+        echo "report=$report" >> "$GITHUB_OUTPUT"
+        exit "$status"
