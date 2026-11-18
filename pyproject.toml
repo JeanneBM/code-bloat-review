@@ -1,14 +1,16 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "code-bloat-review"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Answers one question about a codebase: is it disproportionately large for what it does?"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Joanna Bojko" }]
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["code review", "over-engineering", "static analysis", "dead code", "llm"]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -22,6 +24,9 @@ dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
 code-bloat-review = "code_bloat_review.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "code_bloat_review.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]

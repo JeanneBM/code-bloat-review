@@ -1,5 +1,8 @@
 # code-bloat-review
 
+[![ci](https://github.com/JeanneBM/code-bloat-review/actions/workflows/ci.yml/badge.svg)](https://github.com/JeanneBM/code-bloat-review/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 > **„Czy ten kod jest nieproporcjonalnie rozbudowany względem tego, co robi?”**
 > *Is this code disproportionately large for what it does?*
 
@@ -17,8 +20,28 @@ means what Clean Code asks for, not the fewest characters.
 
 ## Quick start
 
+As a GitHub Action, on every pull request (the report lands in the job summary):
+
+```yaml
+# .github/workflows/bloat.yml
+name: bloat
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: JeanneBM/code-bloat-review@v1
+        with:
+          fail-above: "45"   # optional CI gate
+```
+
+From the command line:
+
 ```bash
-pip install git+https://github.com/JeanneBM/code-bloat-review
+pip install git+https://github.com/JeanneBM/code-bloat-review@v1
 code-bloat-review path/to/project
 ```
 
@@ -64,8 +87,8 @@ The tool weighs two sides of the question against each other, then checks what c
 
 **1. How big is it?** Production SLOC: blank lines, comments and docstrings don't count.
 Tests are reported separately. `.gitignore` is honoured, and dependencies, build output,
-generated code (`*_pb2.py`, `*.min.js`, `*.d.ts`), migrations, `examples/`, `docs/`
-and `benchmarks/` are skipped.
+generated code (`*_pb2.py`, `*.min.js`, `*.d.ts`), migrations, `examples/`, `docs/`,
+`docs_src/` and `benchmarks/` are skipped.
 
 **2. What does it do?** *Capability points*: things the project offers its users.
 
@@ -161,14 +184,15 @@ LLM output varies from run to run, so gate CI on the static score and use `--llm
 ## Usage
 
 ```text
-code-bloat-review [PATH] [-f text|markdown|json] [-o FILE] [--top N]
+code-bloat-review [PATH] [-f text|markdown|json] [-o FILE] [--json FILE] [--top N]
                   [--mode auto|app|library] [--exclude GLOB]... [--baseline SLOC]
                   [--fail-above SCORE] [--llm [auto|anthropic|openai|azure]] [--model NAME]
 ```
 
 - `--fail-above SCORE` exits with status 1 when the score is higher: use it as a CI gate.
 - `-f markdown` writes a PR-comment-ready report. `-f json` writes everything (findings,
-  capabilities, components) for scripts and agents.
+  capabilities, components) for scripts and agents. `--json FILE` writes the JSON as well,
+  from the same run (one LLM call, matching numbers).
 - Settings can live in the reviewed project's `pyproject.toml`:
 
   ```toml
@@ -184,18 +208,46 @@ code-bloat-review [PATH] [-f text|markdown|json] [-o FILE] [--top N]
 
 ### GitHub Action
 
+| Input | Default | Meaning |
+|---|---|---|
+| `path` | `.` | project directory to review |
+| `fail-above` | (none) | fail the step when the score is above this value |
+| `exclude` | (none) | paths to skip, one glob per line |
+| `mode` | `auto` | `app` or `library` (in a library, public code is API, never dead) |
+| `args` | (none) | any other CLI options, shell-quoted, e.g. `--baseline 150 --top 30` |
+
+| Output | Meaning |
+|---|---|
+| `score` | 0–100, higher = more bloat |
+| `answer` | `YES` / `PARTLY` / `NO` |
+| `report` | path to the Markdown report |
+| `json` | path to the full JSON report |
+
+The action needs only `contents: read`. It runs on Linux, macOS and Windows runners, uses its
+own Python and leaves the job's Python untouched. The Markdown report is added to the job
+summary automatically. To post it on the pull request as well:
+
 ```yaml
-- uses: actions/checkout@v5
-- id: bloat
-  uses: JeanneBM/code-bloat-review@main
-  with:
-    path: .
-    fail-above: "45"
-    args: "--exclude 'legacy/*'"
-# outputs: steps.bloat.outputs.score / answer / report (Markdown file path)
+permissions:
+  contents: read
+  pull-requests: write
+steps:
+  - uses: actions/checkout@v5
+  - id: bloat
+    uses: JeanneBM/code-bloat-review@v1
+    with:
+      exclude: |
+        legacy/*
+        scripts/one_off_*.py
+  - if: always() && steps.bloat.outputs.report
+    uses: marocchino/sticky-pull-request-comment@v3   # one comment, updated on every push
+    with:
+      header: code-bloat-review
+      path: ${{ steps.bloat.outputs.report }}
 ```
 
-The Markdown report is added to the job summary automatically.
+Pull requests from forks get a read-only token, so the comment step only works for branches
+in the same repository; the job summary works everywhere.
 
 ## Tried on real projects
 

@@ -7,6 +7,7 @@ import sys
 import tomllib
 from pathlib import Path
 
+from . import __version__
 from .llm import LLMError, make_judge
 from .report import QUESTION, render
 from .review import review
@@ -15,9 +16,13 @@ from .scan import scan
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="code-bloat-review", description=QUESTION)
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("path", nargs="?", default=".", help="project directory (default: .)")
     parser.add_argument("-f", "--format", choices=("text", "markdown", "json"), default="text")
     parser.add_argument("-o", "--output", help="write the report to this file instead of stdout")
+    parser.add_argument(
+        "--json", metavar="FILE", help="also write the full JSON report to FILE (same run)"
+    )
     parser.add_argument(
         "--top", type=int, default=15, help="how many findings to list (default 15)"
     )
@@ -75,6 +80,8 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.output).write_text(output + "\n", encoding="utf-8")
     else:
         sys.stdout.write(output + "\n")
+    if args.json:
+        Path(args.json).write_text(render(report, "json") + "\n", encoding="utf-8")
     fail_above = args.fail_above if args.fail_above is not None else config.get("fail-above")
     return 1 if fail_above is not None and report.score > float(fail_above) else 0
 

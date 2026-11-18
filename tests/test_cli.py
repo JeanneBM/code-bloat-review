@@ -26,6 +26,21 @@ def test_markdown_output_to_file(tmp_path):
     assert "### Top findings (3 of" in text
 
 
+def test_json_next_to_markdown_comes_from_the_same_run(tmp_path):
+    md, js = tmp_path / "report.md", tmp_path / "report.json"
+    main([str(BLOATED), "-f", "markdown", "-o", str(md), "--json", str(js)])
+    data = json.loads(js.read_text())
+    assert md.read_text().startswith(f"## code-bloat-review: **{data['answer']}**")
+    assert f"{data['score']:g}/100" in md.read_text()
+
+
+def test_version(capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["--version"])
+    assert exc.value.code == 0
+    assert capsys.readouterr().out.startswith("code-bloat-review ")
+
+
 def test_text_output(capsys):
     main([str(BLOATED)])
     out = capsys.readouterr().out
