@@ -32,7 +32,7 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: JeanneBM/code-bloat-review@v1
         with:
           fail-above: "45"   # optional CI gate
@@ -247,7 +247,7 @@ permissions:
   contents: read
   pull-requests: write
 steps:
-  - uses: actions/checkout@v5
+  - uses: actions/checkout@v7
   - id: bloat
     uses: JeanneBM/code-bloat-review@v1
     with:
