@@ -1,5 +1,6 @@
 name: code-bloat-review
 description: "Is this code disproportionately large for what it does? Clean Code as the yardstick."
+author: Joanna Bojko
 branding:
   icon: scissors
   color: orange
@@ -11,8 +12,14 @@ inputs:
   fail-above:
     description: Fail the step when the score (0-100) is above this value; empty = never fail
     default: ""
+  exclude:
+    description: Paths to skip, one glob per line (e.g. legacy/*)
+    default: ""
+  mode:
+    description: "auto, app or library: in a library, public code is API, never dead code"
+    default: ""
   args:
-    description: Extra CLI arguments, e.g. "--exclude 'legacy/*' --mode library"
+    description: Extra CLI arguments, shell-quoted, e.g. "--baseline 150 --top 30"
     default: ""
 
 outputs:
@@ -25,28 +32,37 @@ outputs:
   report:
     description: Path to the Markdown report (handy for PR comments)
     value: ${{ steps.review.outputs.report }}
+  json:
+    description: Path to the full JSON report (findings, capabilities, components)
+    value: ${{ steps.review.outputs.json }}
 
 runs:
   using: composite
   steps:
-    - uses: actions/setup-python@v6
+    # update-environment: false keeps the caller's own Python on PATH for later steps.
+    - id: python
+      uses: actions/setup-python@v6
       with:
         python-version: "3.12"
-    - shell: bash
-      run: python -m pip install --quiet "$GITHUB_ACTION_PATH"
+        update-environment: false
     - id: review
       shell: bash
       # Inputs go through env, never straight into the script (no injection via inputs).
       env:
+        PY: ${{ steps.python.outputs.python-path }}
         REVIEW_PATH: ${{ inputs.path }}
         FAIL_ABOVE: ${{ inputs.fail-above }}
+        EXCLUDE: ${{ inputs.exclude }}
+        MODE: ${{ inputs.mode }}
         EXTRA_ARGS: ${{ inputs.args }}
       run: |
-        python - <<'PYTHON'
+        "$PY" - <<'PYTHON'
         import json
         import os
         import shlex
         import subprocess
+        import sys
+        import tempfile
         from pathlib import Path
 
         try:
@@ -54,24 +70,38 @@ runs:
         except ValueError as error:
             raise SystemExit(f"Invalid args input: {error}") from error
 
-        runner_temp = Path(os.environ["RUNNER_TEMP"])
-        json_report = runner_temp / "code-bloat-review.json"
-        report = runner_temp / "code-bloat-review.md"
-        command = ["code-bloat-review", os.environ["REVIEW_PATH"]]
-        subprocess.run([*command, "-f", "json", "-o", str(json_report), *extra_args])
+        options = []
+        for glob in os.environ["EXCLUDE"].splitlines():
+            if glob.strip():
+                options += ["--exclude", glob.strip()]
+        for name, flag in (("MODE", "--mode"), ("FAIL_ABOVE", "--fail-above")):
+            if os.environ[name].strip():
+                options += [flag, os.environ[name].strip()]
 
-        threshold = os.environ["FAIL_ABOVE"]
-        gate_args = ["--fail-above", threshold] if threshold else []
+        # A fresh directory per run, so two uses of the action in one job keep both reports.
+        out_dir = Path(tempfile.mkdtemp(prefix="code-bloat-review-", dir=os.environ["RUNNER_TEMP"]))
+        json_report = out_dir / "code-bloat-review.json"
+        report = out_dir / "code-bloat-review.md"
+        # Zero runtime dependencies: run straight from the action's source, no pip install.
+        env = {**os.environ, "PYTHONPATH": str(Path(os.environ["GITHUB_ACTION_PATH"]) / "src")}
+        # One run writes both reports: one LLM call with --llm, and outputs match the summary.
         result = subprocess.run(
-            [*command, "-f", "markdown", "-o", str(report), *extra_args, *gate_args]
+            [sys.executable, "-m", "code_bloat_review", os.environ["REVIEW_PATH"],
+             "-f", "markdown", "-o", str(report), "--json", str(json_report),
+             *options, *extra_args],
+            env=env,
         )
+        if not json_report.exists():
+            print(f"::error title=code-bloat-review::the review did not run (exit {result.returncode})")
+            raise SystemExit(result.returncode or 1)
 
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
             summary.write(report.read_text(encoding="utf-8"))
         data = json.loads(json_report.read_text(encoding="utf-8"))
-        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as outputs:
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8", newline="\n") as outputs:
             print(f"score={data['score']}", file=outputs)
             print(f"answer={data['answer']}", file=outputs)
             print(f"report={report}", file=outputs)
+            print(f"json={json_report}", file=outputs)
         raise SystemExit(result.returncode)
         PYTHON

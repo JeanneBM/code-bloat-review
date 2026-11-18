@@ -37,7 +37,7 @@ TEXT_NAMES = {"Dockerfile", "Procfile", "Makefile", "requirements.txt", "require
 SKIP_DIRS = {
     "node_modules", "venv", "env", "__pycache__", "build", "dist", "site-packages", "vendor",
     "third_party", "coverage", "htmlcov", "target", "bin", "obj", "migrations",
-    "alembic", "examples", "example", "samples", "docs", "doc", "benchmarks",
+    "alembic", "examples", "example", "samples", "docs", "doc", "docs_src", "benchmarks",
 }
 SKIP_FILES = ("*.min.js", "*_pb2.py", "*_pb2_grpc.py", "*.d.ts")
 MAX_BYTES = 1_000_000  # larger files are almost always generated

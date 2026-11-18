@@ -1,6 +1,13 @@
 name: Smoke test code-bloat-review
 
-on: [push]
+# Runs the published action exactly as users get it (@v1): after each release, on demand,
+# and weekly to catch runner image changes. CI tests the code in this repo with `uses: ./`.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
 
 permissions:
   contents: read
@@ -18,7 +25,7 @@ jobs:
 
       - name: Run published repository action
         id: review
-        uses: JeanneBM/code-bloat-review@becc606e886e5b2e17ac665610aab88ee870ef84
+        uses: JeanneBM/code-bloat-review@v1
         with:
           path: ${{ runner.temp }}/bloat-smoke
           args: "--exclude 'legacy dir/*'"
@@ -33,4 +40,4 @@ jobs:
           test -s "$REPORT"
           test -n "$SCORE"
           test "$ANSWER" = "NO"
-          grep -F '1 SLOC in 1 production files' "$REPORT"
+          grep -F '1 SLOC in 1 production file' "$REPORT"

@@ -1,5 +1,8 @@
 # code-bloat-review
 
+[![ci](https://github.com/JeanneBM/code-bloat-review/actions/workflows/ci.yml/badge.svg)](https://github.com/JeanneBM/code-bloat-review/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 > **„Czy ten kod jest nieproporcjonalnie rozbudowany względem tego, co robi?”**
 > *Is this code disproportionately large for what it does?*
 
@@ -17,8 +20,28 @@ means what Clean Code asks for, not the fewest characters.
 
 ## Quick start
 
+As a GitHub Action, on every pull request (the report lands in the job summary):
+
+```yaml
+# .github/workflows/bloat.yml
+name: bloat
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: JeanneBM/code-bloat-review@v1
+        with:
+          fail-above: "45"   # optional CI gate
+```
+
+From the command line:
+
 ```bash
-pip install git+https://github.com/JeanneBM/code-bloat-review
+pip install git+https://github.com/JeanneBM/code-bloat-review@v1
 code-bloat-review path/to/project
 ```
 
@@ -64,8 +87,8 @@ The tool weighs two sides of the question against each other, then checks what c
 
 **1. How big is it?** Production SLOC: blank lines, comments and docstrings don't count.
 Tests are reported separately. `.gitignore` is honoured, and dependencies, build output,
-generated code (`*_pb2.py`, `*.min.js`, `*.d.ts`), migrations, `examples/`, `docs/`
-and `benchmarks/` are skipped.
+generated code (`*_pb2.py`, `*.min.js`, `*.d.ts`), migrations, `examples/`, `docs/`,
+`docs_src/` and `benchmarks/` are skipped.
 
 **2. What does it do?** *Capability points*: things the project offers its users.
 
@@ -80,6 +103,10 @@ and `benchmarks/` are skipped.
 
 The mode is detected automatically: **app** when entry points exist, otherwise **library**.
 In a library, public code is API, so it is never called dead. Override it with `--mode`.
+An `if __name__ == "__main__"` block in a module inside a package (like `requests/certs.py`)
+is taken as a helper, not an entry point. When app mode rests only on a declared script or on
+dev tooling in `scripts/` or `tools/` (a library that ships a small CLI), the report says so
+and suggests `--mode library`.
 
 **3. What could go?** The Clean Code rules below. Each finding covers the lines that
 would disappear. These are summed without double counting (a dead class that is also a
@@ -156,19 +183,31 @@ code-bloat-review . --llm                 # first provider with credentials
 code-bloat-review . --llm azure           # explicit provider
 ```
 
+In the action, pass the key from a secret:
+
+```yaml
+- uses: JeanneBM/code-bloat-review@v1
+  with:
+    args: --llm
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
 LLM output varies from run to run, so gate CI on the static score and use `--llm` for reviews.
+See [SECURITY.md](SECURITY.md) for what leaves the runner.
 
 ## Usage
 
 ```text
-code-bloat-review [PATH] [-f text|markdown|json] [-o FILE] [--top N]
+code-bloat-review [PATH] [-f text|markdown|json] [-o FILE] [--json FILE] [--top N]
                   [--mode auto|app|library] [--exclude GLOB]... [--baseline SLOC]
                   [--fail-above SCORE] [--llm [auto|anthropic|openai|azure]] [--model NAME]
 ```
 
 - `--fail-above SCORE` exits with status 1 when the score is higher: use it as a CI gate.
 - `-f markdown` writes a PR-comment-ready report. `-f json` writes everything (findings,
-  capabilities, components) for scripts and agents.
+  capabilities, components) for scripts and agents. `--json FILE` writes the JSON as well,
+  from the same run (one LLM call, matching numbers).
 - Settings can live in the reviewed project's `pyproject.toml`:
 
   ```toml
@@ -184,18 +223,46 @@ code-bloat-review [PATH] [-f text|markdown|json] [-o FILE] [--top N]
 
 ### GitHub Action
 
+| Input | Default | Meaning |
+|---|---|---|
+| `path` | `.` | project directory to review |
+| `fail-above` | (none) | fail the step when the score is above this value |
+| `exclude` | (none) | paths to skip, one glob per line |
+| `mode` | `auto` | `app` or `library` (in a library, public code is API, never dead) |
+| `args` | (none) | any other CLI options, shell-quoted, e.g. `--baseline 150 --top 30` |
+
+| Output | Meaning |
+|---|---|
+| `score` | 0–100, higher = more bloat |
+| `answer` | `YES` / `PARTLY` / `NO` |
+| `report` | path to the Markdown report |
+| `json` | path to the full JSON report |
+
+The action needs only `contents: read`. It runs on Linux, macOS and Windows runners, uses its
+own Python and leaves the job's Python untouched. The Markdown report is added to the job
+summary automatically. To post it on the pull request as well:
+
 ```yaml
-- uses: actions/checkout@v5
-- id: bloat
-  uses: JeanneBM/code-bloat-review@main
-  with:
-    path: .
-    fail-above: "45"
-    args: "--exclude 'legacy/*'"
-# outputs: steps.bloat.outputs.score / answer / report (Markdown file path)
+permissions:
+  contents: read
+  pull-requests: write
+steps:
+  - uses: actions/checkout@v5
+  - id: bloat
+    uses: JeanneBM/code-bloat-review@v1
+    with:
+      exclude: |
+        legacy/*
+        scripts/one_off_*.py
+  - if: always() && steps.bloat.outputs.report
+    uses: marocchino/sticky-pull-request-comment@v3   # one comment, updated on every push
+    with:
+      header: code-bloat-review
+      path: ${{ steps.bloat.outputs.report }}
 ```
 
-The Markdown report is added to the job summary automatically.
+Pull requests from forks get a read-only token, so the comment step only works for branches
+in the same repository; the job summary works everywhere.
 
 ## Tried on real projects
 
@@ -206,8 +273,15 @@ Default settings, November 2026:
 | [pallets/click](https://github.com/pallets/click) `8abb77a` (library) | 7,107 | NO, lean | 1.3 | a few duplicated blocks |
 | [httpie/cli](https://github.com/httpie/cli) `5b604c3` | 7,588 | NO, lean | 16.9 | a 90-line function nobody calls, commented-out debug lines |
 | [fastapi/full-stack-fastapi-template](https://github.com/fastapi/full-stack-fastapi-template) `aabb901` | 9,324 | NO, acceptable | 31.7 | copy-pasted form components (Add/Edit User/Item) |
+| [psf/requests](https://github.com/psf/requests) `3c7baaa` (library) | 3,594 | NO, lean | 3.5 | |
+| [django/django](https://github.com/django/django) `9e2e5a3` | 110,188 | NO, acceptable | 39.6 | dead code and duplicated blocks, spread thin over a large codebase |
+| [fastapi/fastapi](https://github.com/fastapi/fastapi) `b283119` `--mode library` | 21,523 | NO, acceptable | 43.4 | `get`/`put`/`post`/… repeat the same long keyword-argument lists, on purpose, for editor support |
 | `examples/lean_todo` | 31 | NO, lean | 0 | |
 | `examples/bloated_todo` | 169 | **YES**, bloated | 73.7 | dead code, accessors, duplication, single-implementation interface |
+
+FastAPI shows the limit of auto mode: it ships a `fastapi` CLI, so by default it is judged
+as an app (YES, 81.4) and the report suggests `--mode library`. FastAPI's duplication is a
+deliberate trade-off; Clean Code (G5) still counts it, and the report shows where it is.
 
 The tool also reviews itself in CI (`fail-above = 25` in this repo's `pyproject.toml`).
 

@@ -5,4 +5,4 @@ from .review import review
 from .scan import scan
 
 __all__ = ["render", "review", "scan"]
-__version__ = "0.1.0"
+__version__ = "1.0.0"

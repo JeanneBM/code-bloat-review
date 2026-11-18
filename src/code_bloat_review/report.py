@@ -87,7 +87,8 @@ def _summary(report: Report) -> list[tuple]:
         ("Yardstick", YARDSTICK),
         (
             "Size",
-            f"{report.prod_sloc:,} SLOC in {report.files} production files ({languages or '-'}); "
+            f"{report.prod_sloc:,} SLOC in {report.files} production "
+            f"file{'' if report.files == 1 else 's'} ({languages or '-'}); "
             f"{report.test_sloc:,} SLOC of tests",
         ),
         ("Does", f"{report.capability_points:g} capability points: {does} [mode: {report.mode}]"),

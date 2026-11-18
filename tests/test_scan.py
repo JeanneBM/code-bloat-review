@@ -72,6 +72,7 @@ def test_default_and_user_excludes(tmp_path):
             "static/app.min.js": "var a=1;\n",
             "examples/demo.py": "x = 1\n",
             "docs/conf.py": "x = 1\n",
+            "docs_src/tutorial001.py": "x = 1\n",
         },
     )
     paths = {f.path for f in scan(tmp_path, exclude=["legacy/*"]).files}
