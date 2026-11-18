@@ -3,8 +3,7 @@
 [![ci](https://github.com/JeanneBM/code-bloat-review/actions/workflows/ci.yml/badge.svg)](https://github.com/JeanneBM/code-bloat-review/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> **„Czy ten kod jest nieproporcjonalnie rozbudowany względem tego, co robi?”**
-> *Is this code disproportionately large for what it does?*
+> **Is this code disproportionately large for what it does?**
 
 `code-bloat-review` answers that one question for a whole project: **YES / PARTLY / NO**,
 with a 0–100 score and the evidence behind it. The yardstick is
