@@ -42,18 +42,36 @@ runs:
         FAIL_ABOVE: ${{ inputs.fail-above }}
         EXTRA_ARGS: ${{ inputs.args }}
       run: |
-        report="$RUNNER_TEMP/code-bloat-review.md"
-        # shellcheck disable=SC2086  # EXTRA_ARGS is meant to be split into arguments
-        code-bloat-review "$REVIEW_PATH" -f json -o "$RUNNER_TEMP/code-bloat-review.json" $EXTRA_ARGS || true
-        status=0
-        code-bloat-review "$REVIEW_PATH" -f markdown -o "$report" $EXTRA_ARGS \
-          ${FAIL_ABOVE:+--fail-above "$FAIL_ABOVE"} || status=$?
-        cat "$report" >> "$GITHUB_STEP_SUMMARY"
-        python - <<'EOF' >> "$GITHUB_OUTPUT"
-        import json, os
-        data = json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "code-bloat-review.json")))
-        print(f"score={data['score']}")
-        print(f"answer={data['answer']}")
-        EOF
-        echo "report=$report" >> "$GITHUB_OUTPUT"
-        exit "$status"
+        python - <<'PYTHON'
+        import json
+        import os
+        import shlex
+        import subprocess
+        from pathlib import Path
+
+        try:
+            extra_args = shlex.split(os.environ["EXTRA_ARGS"])
+        except ValueError as error:
+            raise SystemExit(f"Invalid args input: {error}") from error
+
+        runner_temp = Path(os.environ["RUNNER_TEMP"])
+        json_report = runner_temp / "code-bloat-review.json"
+        report = runner_temp / "code-bloat-review.md"
+        command = ["code-bloat-review", os.environ["REVIEW_PATH"]]
+        subprocess.run([*command, "-f", "json", "-o", str(json_report), *extra_args])
+
+        threshold = os.environ["FAIL_ABOVE"]
+        gate_args = ["--fail-above", threshold] if threshold else []
+        result = subprocess.run(
+            [*command, "-f", "markdown", "-o", str(report), *extra_args, *gate_args]
+        )
+
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+            summary.write(report.read_text(encoding="utf-8"))
+        data = json.loads(json_report.read_text(encoding="utf-8"))
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as outputs:
+            print(f"score={data['score']}", file=outputs)
+            print(f"answer={data['answer']}", file=outputs)
+            print(f"report={report}", file=outputs)
+        raise SystemExit(result.returncode)
+        PYTHON
