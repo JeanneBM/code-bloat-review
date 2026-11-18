@@ -1,0 +1,36 @@
+name: Smoke test code-bloat-review
+
+on: [push]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create sample project
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/bloat-smoke/legacy dir"
+          printf 'print("keep")\n' > "$RUNNER_TEMP/bloat-smoke/app.py"
+          printf 'print("exclude")\n' > "$RUNNER_TEMP/bloat-smoke/legacy dir/old.py"
+
+      - name: Run published repository action
+        id: review
+        uses: JeanneBM/code-bloat-review@becc606e886e5b2e17ac665610aab88ee870ef84
+        with:
+          path: ${{ runner.temp }}/bloat-smoke
+          args: "--exclude 'legacy dir/*'"
+
+      - name: Verify report and outputs
+        shell: bash
+        env:
+          REPORT: ${{ steps.review.outputs.report }}
+          SCORE: ${{ steps.review.outputs.score }}
+          ANSWER: ${{ steps.review.outputs.answer }}
+        run: |
+          test -s "$REPORT"
+          test -n "$SCORE"
+          test "$ANSWER" = "NO"
+          grep -F '1 SLOC in 1 production files' "$REPORT"
