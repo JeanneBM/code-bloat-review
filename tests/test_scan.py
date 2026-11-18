@@ -86,6 +86,12 @@ def test_gitignore_is_honoured_in_git_repos(tmp_path):
     assert {f.path for f in scan(tmp_path).files} == {"app.py"}
 
 
+def test_empty_git_file_list_does_not_scan_ignored_files(tmp_path):
+    write(tmp_path, {".gitignore": "*\n", "generated.py": "x = 1\n"})
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    assert not scan(tmp_path).files
+
+
 def test_readme_and_config_texts_are_kept(tmp_path):
     write(
         tmp_path, {"README.md": "# Hello", "pyproject.toml": "[project]\nname='x'\n", "app.py": ""}
