@@ -183,7 +183,18 @@ code-bloat-review . --llm                 # first provider with credentials
 code-bloat-review . --llm azure           # explicit provider
 ```
 
+In the action, pass the key from a secret:
+
+```yaml
+- uses: JeanneBM/code-bloat-review@v1
+  with:
+    args: --llm
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
 LLM output varies from run to run, so gate CI on the static score and use `--llm` for reviews.
+See [SECURITY.md](SECURITY.md) for what leaves the runner.
 
 ## Usage
 
