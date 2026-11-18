@@ -34,7 +34,8 @@ jobs:
         uses: ./
       - run: echo "Self-review answer ${{ steps.review.outputs.answer }}, score ${{ steps.review.outputs.score }}"
 
-  # The action as users run it: gate, outputs and the exclude input, on every runner OS.
+  # The action as users run it, on every runner OS: gate, outputs, exclude/args quoting,
+  # two uses in one job, and the job's own Python left alone.
   action:
     needs: test
     strategy:
@@ -44,6 +45,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Sample project with a space in a directory name
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/smoke/legacy dir"
+          printf 'print("keep")\n' > "$RUNNER_TEMP/smoke/app.py"
+          printf 'print("exclude")\n' > "$RUNNER_TEMP/smoke/legacy dir/old.py"
       - id: bloated
         uses: ./
         continue-on-error: true
@@ -56,7 +66,12 @@ jobs:
           path: examples/bloated_todo
           exclude: |
             todo_app/*
-          args: --top 3 --mode 'app'
+          mode: app
+      - id: quoted
+        uses: ./
+        with:
+          path: ${{ runner.temp }}/smoke
+          args: --exclude 'legacy dir/*' --top 3
       - shell: bash
         env:
           OUTCOME: ${{ steps.bloated.outcome }}
@@ -64,6 +79,7 @@ jobs:
           REPORT: ${{ steps.bloated.outputs.report }}
           JSON: ${{ steps.bloated.outputs.json }}
           EXCLUDED: ${{ steps.excluded.outputs.score }}
+          QUOTED: ${{ steps.quoted.outputs.report }}
         run: |
           set -x
           test "$OUTCOME" = failure
@@ -71,3 +87,5 @@ jobs:
           grep -q '## code-bloat-review: \*\*YES\*\*' "$REPORT"
           grep -q '"answer": "YES"' "$JSON"
           test "$EXCLUDED" = 0.0
+          grep -qF '1 SLOC in 1 production file' "$QUOTED"
+          python -c 'import sys; assert sys.version_info[:2] == (3, 11), sys.version'
