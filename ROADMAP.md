@@ -7,6 +7,14 @@ copied helper costs it nothing. Running and maintaining that code did not get ch
 extra line and dependency means longer CI runs, more scanner alerts and more to patch. The
 directions below keep the tool on the prevention side, in CI, with reasons a reviewer can check.
 
+Two uses, in this order:
+
+1. **Taking over code.** When you sit down to code you are about to be responsible for, one
+   run tells you whether it is proportionate to what it does, and where it is not. That is
+   what v1 does: fully for applications, partly for pipelines (see below).
+2. **Stopping it from growing.** The next step is to stop bloat in the changes coming in,
+   pull request by pull request. Most of this roadmap serves that step.
+
 This is a plan, not a promise. Use cases and ideas are welcome in issues.
 
 ## Next
@@ -53,6 +61,14 @@ cost it causes, how it is detected and how to silence it.
 - several libraries for the same job (`requests` and `httpx`)
 - generated or vendored code committed to the repository
 - CI workflows copied with one line changed
+
+### Pipelines and infrastructure as first-class code
+
+Taking over a pipeline should get the same answer as taking over an application. Today shell,
+PowerShell and Terraform get duplication and commented-out code checks; YAML workflows,
+Kubernetes manifests, Bicep, Jenkinsfiles and Dockerfiles are only read to find references to
+code, and are not judged. Candidates: duplicated jobs and steps across workflows, copied
+Bicep/Terraform modules, unused parameters and outputs, stages that do nothing.
 
 ## Known limits to work on
 
