@@ -103,6 +103,10 @@ generated code (`*_pb2.py`, `*.min.js`, `*.d.ts`), migrations, `examples/`, `doc
 
 The mode is detected automatically: **app** when entry points exist, otherwise **library**.
 In a library, public code is API, so it is never called dead. Override it with `--mode`.
+An `if __name__ == "__main__"` block in a module inside a package (like `requests/certs.py`)
+is taken as a helper, not an entry point. When app mode rests only on a declared script or on
+dev tooling in `scripts/` or `tools/` (a library that ships a small CLI), the report says so
+and suggests `--mode library`.
 
 **3. What could go?** The Clean Code rules below. Each finding covers the lines that
 would disappear. These are summed without double counting (a dead class that is also a
@@ -258,8 +262,15 @@ Default settings, November 2026:
 | [pallets/click](https://github.com/pallets/click) `8abb77a` (library) | 7,107 | NO, lean | 1.3 | a few duplicated blocks |
 | [httpie/cli](https://github.com/httpie/cli) `5b604c3` | 7,588 | NO, lean | 16.9 | a 90-line function nobody calls, commented-out debug lines |
 | [fastapi/full-stack-fastapi-template](https://github.com/fastapi/full-stack-fastapi-template) `aabb901` | 9,324 | NO, acceptable | 31.7 | copy-pasted form components (Add/Edit User/Item) |
+| [psf/requests](https://github.com/psf/requests) `3c7baaa` (library) | 3,594 | NO, lean | 3.5 | |
+| [django/django](https://github.com/django/django) `9e2e5a3` | 110,188 | NO, acceptable | 39.6 | dead code and duplicated blocks, spread thin over a large codebase |
+| [fastapi/fastapi](https://github.com/fastapi/fastapi) `b283119` `--mode library` | 21,523 | NO, acceptable | 43.4 | `get`/`put`/`post`/… repeat the same long keyword-argument lists, on purpose, for editor support |
 | `examples/lean_todo` | 31 | NO, lean | 0 | |
 | `examples/bloated_todo` | 169 | **YES**, bloated | 73.7 | dead code, accessors, duplication, single-implementation interface |
+
+FastAPI shows the limit of auto mode: it ships a `fastapi` CLI, so by default it is judged
+as an app (YES, 81.4) and the report suggests `--mode library`. FastAPI's duplication is a
+deliberate trade-off; Clean Code (G5) still counts it, and the report shows where it is.
 
 The tool also reviews itself in CI (`fail-above = 25` in this repo's `pyproject.toml`).
 

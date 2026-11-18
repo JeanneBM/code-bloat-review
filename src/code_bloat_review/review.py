@@ -40,6 +40,7 @@ CAPABILITY_WEIGHTS = {
     "data-model": 0.25,
 }
 APP_KINDS = {"http-route", "cli-command", "script", "trigger", "task", "agent-tool"}
+TOOLING_DIRS = ("scripts/", "tools/")
 VERDICTS = (
     (25, "lean", "NO"),
     (45, "acceptable", "NO"),
@@ -61,7 +62,8 @@ def review(
 
     capabilities = python_capabilities(index, project.texts) + regex_capabilities(project)
     if mode == "auto":
-        mode = "app" if any(c.kind in APP_KINDS for c in capabilities) else "library"
+        mode, note = _detect_mode(capabilities, [f.path for f in python])
+        notes += [note] if note else []
     if mode == "library":
         capabilities += public_api(index)
 
@@ -173,6 +175,46 @@ def _suppressed(lines: list[str], line: int) -> bool:
 
 def _sorted(capabilities: list[Capability]) -> list[Capability]:
     return sorted(capabilities, key=lambda c: (-CAPABILITY_WEIGHTS[c.kind], c.kind, c.path, c.line))
+
+
+def _detect_mode(capabilities: list[Capability], paths: list[str]) -> tuple[str, str | None]:
+    """App when the project has entry points. A `__main__` block in a module inside a
+    package (requests' certs.py) is a helper, not an entry point: packages expose their
+    commands through `__main__.py` or declared scripts."""
+    packages = {p.rpartition("/")[0] for p in paths if p.rpartition("/")[2] == "__init__.py"}
+    helpers = [
+        c
+        for c in capabilities
+        if c.kind == "script"
+        and c.path.endswith(".py")
+        and not c.path.endswith("__main__.py")
+        and c.path.rpartition("/")[0] in packages
+    ]
+    entries = [c for c in capabilities if c.kind in APP_KINDS and c not in helpers]
+    if not entries:
+        return "library", (
+            f"{len(helpers)} `if __name__ == '__main__'` block(s) inside packages were taken "
+            "as helpers, not entry points; if this is an app, rerun with --mode app."
+            if helpers
+            else None
+        )
+    # Dev tooling (FastAPI's scripts/ is 35 typer commands) says little about the product.
+    product = [c for c in capabilities if not c.path.startswith(TOOLING_DIRS)]
+    product_entries = [c for c in entries if c in product]
+    if (
+        packages
+        and all(c.kind == "script" for c in product_entries)
+        and not any(c.kind == "cli-option" for c in product)
+    ):
+        rests_on = (
+            f"{len(product_entries)} script entry point(s)"
+            if product_entries
+            else "dev tooling in scripts/ or tools/"
+        )
+        return "app", (
+            f"Mode app rests only on {rests_on}; if this is a library, rerun with --mode library."
+        )
+    return "app", None
 
 
 def _clamp(value: float) -> float:

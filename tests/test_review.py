@@ -135,6 +135,40 @@ def test_many_small_files_are_not_bloat(run):
     assert set(report.weights) == {"removable", "density"}
 
 
+def test_main_block_inside_a_package_does_not_make_an_app(run):
+    """requests/certs.py: a `__main__` helper in a library; its API is not dead code."""
+    report = run(
+        {
+            "lib/__init__.py": "from lib.certs import where\n",
+            "lib/certs.py": "def where():\n    return '/etc/ssl'\n\n"
+            "if __name__ == '__main__':\n    print(where())\n",
+            "tests/test_certs.py": "from lib.certs import where\n\nassert where()\n",
+        }
+    )
+    assert report.mode == "library"
+    assert report.findings == []
+    assert any("--mode app" in note for note in report.notes)
+
+
+def test_top_level_script_is_an_app(run):
+    report = run(
+        {"tool.py": "def main():\n    print(1)\n\nif __name__ == '__main__':\n    main()\n"}
+    )
+    assert report.mode == "app"
+    assert not any("rerun" in note for note in report.notes)
+
+
+def test_library_with_only_a_declared_script_gets_a_hint(run):
+    report = run(
+        {
+            "pyproject.toml": '[project]\nname = "lib"\n\n[project.scripts]\nlib = "lib:main"\n',
+            "lib/__init__.py": "def main():\n    print(1)\n\ndef helper():\n    return 2\n",
+        }
+    )
+    assert report.mode == "app"
+    assert any("--mode library" in note for note in report.notes)
+
+
 def test_every_finding_names_its_clean_code_heuristic():
     report = review(scan(EXAMPLES / "bloated_todo"))
     assert all(f.clean_code for f in report.findings)
