@@ -1,0 +1,18 @@
+# Weekly update PRs: GitHub Actions used by the workflows and by action.yml itself
+# (directory "/" covers both), and the dev tools from pyproject.toml.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-tools:
+        patterns: ["*"]
