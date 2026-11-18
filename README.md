@@ -310,6 +310,9 @@ The tool also reviews itself in CI (`fail-above = 25` in this repo's `pyproject.
 - **Removable lines are an estimate.** Every repeated copy of a duplicate counts; a dead
   function counts fully. Treat findings as review leads, not automatic deletions.
 
+Where the tool is going (a ratchet for pull requests, team rules, an ops yardstick) is in
+[ROADMAP.md](ROADMAP.md).
+
 ## Development
 
 ```bash
