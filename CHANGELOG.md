@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Symbolic links are no longer followed. A link pointing outside the project could pull
+  that file into the report and the LLM digest; a link to a file inside the project counted
+  it twice and showed up as duplicated code.
+
 ## 1.0.0 (2026-11)
 
 First release on the GitHub Marketplace.

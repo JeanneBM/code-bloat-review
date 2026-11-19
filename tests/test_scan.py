@@ -1,5 +1,6 @@
 import subprocess
 
+import pytest
 from conftest import write
 
 from code_bloat_review.scan import is_test_path, scan
@@ -102,11 +103,21 @@ def test_readme_and_config_texts_are_kept(tmp_path):
     assert "pyproject.toml" in project.texts
 
 
-def test_scan_excludes_symlinks_outside_project(tmp_path):
+@pytest.mark.parametrize("in_git", [True, False])
+def test_scan_skips_symlinks(tmp_path, in_git):
     root = tmp_path / "repo"
     root.mkdir()
-    write(tmp_path, {"outside.py": "secret = 123\n"})
+    if in_git:
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+    write(tmp_path, {"outside.py": "secret = 123\n", "outside.txt": "secret-dep\n"})
     (root / "external.py").symlink_to(tmp_path / "outside.py")
+    (root / "requirements.txt").symlink_to(tmp_path / "outside.txt")
+    (root / "README.md").symlink_to(tmp_path / "outside.txt")
     write(root, {"local.py": "x = 1\n"})
-    (root / "internal.py").symlink_to(root / "local.py")
-    assert {f.path for f in scan(root).files} == {"local.py", "internal.py"}
+    (root / "internal.py").symlink_to(root / "local.py")  # would count local.py twice
+    (root / "loop_a.py").symlink_to(root / "loop_b.py")
+    (root / "loop_b.py").symlink_to(root / "loop_a.py")
+    project = scan(root)
+    assert {f.path for f in project.files} == {"local.py"}
+    assert project.texts == {}
+    assert project.readme == ""

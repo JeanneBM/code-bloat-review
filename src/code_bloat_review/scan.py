@@ -52,13 +52,14 @@ TEST_NAME = re.compile(
 def scan(root: Path, exclude: Iterable[str] = ()) -> Project:
     project = Project(root=root)
     patterns = tuple(exclude)
-    boundary = root.resolve()
     for rel in _candidate_paths(root):
         if _skipped(rel, patterns):
             continue
         path = root / rel
         try:
-            if not path.resolve().is_relative_to(boundary):
+            # A link is not code of its own: it may point outside the project or
+            # duplicate a file that is already counted.
+            if path.is_symlink():
                 continue
             if not path.is_file() or path.stat().st_size > MAX_BYTES:
                 continue
