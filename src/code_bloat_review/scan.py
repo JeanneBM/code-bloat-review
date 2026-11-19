@@ -52,11 +52,14 @@ TEST_NAME = re.compile(
 def scan(root: Path, exclude: Iterable[str] = ()) -> Project:
     project = Project(root=root)
     patterns = tuple(exclude)
+    boundary = root.resolve()
     for rel in _candidate_paths(root):
         if _skipped(rel, patterns):
             continue
         path = root / rel
         try:
+            if not path.resolve().is_relative_to(boundary):
+                continue
             if not path.is_file() or path.stat().st_size > MAX_BYTES:
                 continue
             text = path.read_text(encoding="utf-8")

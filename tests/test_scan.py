@@ -100,3 +100,13 @@ def test_readme_and_config_texts_are_kept(tmp_path):
     project = scan(tmp_path)
     assert project.readme == "# Hello"
     assert "pyproject.toml" in project.texts
+
+
+def test_scan_excludes_symlinks_outside_project(tmp_path):
+    root = tmp_path / "repo"
+    root.mkdir()
+    write(tmp_path, {"outside.py": "secret = 123\n"})
+    (root / "external.py").symlink_to(tmp_path / "outside.py")
+    write(root, {"local.py": "x = 1\n"})
+    (root / "internal.py").symlink_to(root / "local.py")
+    assert {f.path for f in scan(root).files} == {"local.py", "internal.py"}
