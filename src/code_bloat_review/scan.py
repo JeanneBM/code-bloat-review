@@ -57,6 +57,10 @@ def scan(root: Path, exclude: Iterable[str] = ()) -> Project:
             continue
         path = root / rel
         try:
+            # A link is not code of its own: it may point outside the project or
+            # duplicate a file that is already counted.
+            if path.is_symlink():
+                continue
             if not path.is_file() or path.stat().st_size > MAX_BYTES:
                 continue
             text = path.read_text(encoding="utf-8")

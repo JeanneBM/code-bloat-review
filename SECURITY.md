@@ -4,6 +4,8 @@
 
 - It reads the checked-out code and needs only `contents: read`. It never writes to the
   repository and needs no token.
+- Symbolic links are skipped, so a link in the reviewed code cannot pull a file from
+  outside the project into the report or the LLM digest.
 - By default it is fully static: no code or data leaves the runner. The only download is
   Python from `actions/setup-python`.
 - Inputs reach the scripts through environment variables, never by expression expansion
