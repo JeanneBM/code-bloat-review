@@ -17,6 +17,29 @@ means what Clean Code asks for, not the fewest characters.
 - Optional LLM second opinion (Anthropic, OpenAI-compatible, Azure OpenAI) on *what the code does*
 - A GitHub Action, and a CI gate (`--fail-above`)
 
+## Architecture
+
+Static analysis runs locally or in GitHub Actions. The optional model receives a project digest rather than full source files. Reports expose the score and supporting findings; a configured threshold controls the CI exit code.
+
+```mermaid
+flowchart TD
+  REPO[("Whole project checkout")] --> SCAN["File scan, exclusions and SLOC"]
+  CLI["CLI or GitHub Action"] --> SCAN
+  subgraph LOCAL["Python analysis process"]
+    SCAN --> PY["Python AST rules and capabilities"]
+    SCAN --> GEN["Cross-language text and dependency rules"]
+    PY --> SCORE["Weighted scoring and YES / PARTLY / NO"]
+    GEN --> SCORE
+    PY --> DIGEST["Optional project digest"]
+    GEN --> DIGEST
+    SCORE --> REPORT["Text, Markdown and JSON reports"]
+    SCORE --> GATE["Optional fail-above exit gate"]
+  end
+  DIGEST --> MODEL["Optional Anthropic, OpenAI or Azure OpenAI"]
+  MODEL -->|"purpose and lean-size estimate"| SCORE
+  REPORT --> SUMMARY["Action outputs and job summary"]
+```
+
 ## Quick start
 
 As a GitHub Action, on every pull request (the report lands in the job summary):
