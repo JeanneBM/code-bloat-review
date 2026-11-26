@@ -121,3 +121,19 @@ def test_scan_skips_symlinks(tmp_path, in_git):
     assert {f.path for f in project.files} == {"local.py"}
     assert project.texts == {}
     assert project.readme == ""
+
+
+def test_conflicted_git_file_is_counted_once(tmp_path):
+    write(tmp_path, {"app.py": "x = 1\n"})
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    blob = subprocess.check_output(
+        ["git", "-C", str(tmp_path), "hash-object", "-w", "app.py"], text=True
+    ).strip()
+    stages = "".join(f"100644 {blob} {stage}\tapp.py\n" for stage in (1, 2, 3))
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "update-index", "--index-info"],
+        input=stages,
+        text=True,
+        check=True,
+    )
+    assert [f.path for f in scan(tmp_path).files] == ["app.py"]

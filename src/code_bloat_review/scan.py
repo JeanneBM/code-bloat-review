@@ -122,7 +122,7 @@ def _candidate_paths(root: Path) -> list[str]:
             check=True,
             timeout=60,
         ).stdout.decode("utf-8", "replace")
-        return sorted(p for p in listed.split("\0") if p)
+        return sorted({p for p in listed.split("\0") if p})
     except (OSError, subprocess.SubprocessError):
         pass
     paths = []
