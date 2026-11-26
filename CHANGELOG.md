@@ -1,10 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.0.1 (2026-11-26)
 
 - Symbolic links are no longer followed. A link pointing outside the project could pull
   that file into the report and the LLM digest; a link to a file inside the project counted
   it twice and showed up as duplicated code.
+- Files with unresolved Git conflicts are counted once rather than once per index
+  stage, avoiding inflated SLOC and duplicate findings.
 
 ## 1.0.0 (2026-11)
 
